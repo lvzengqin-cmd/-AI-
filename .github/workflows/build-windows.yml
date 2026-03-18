@@ -1,0 +1,58 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'strategies/BTC_Strategy_Windows_*.py'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install numpy
+        # 下载并安装 TA-Lib
+        curl -L -o ta_lib.whl https://download.lfd.uci.edu/pythonlibs/archived/TA_Lib-0.4.24-cp310-cp310-win_amd64.whl
+        pip install ta_lib.whl
+        pip install pyinstaller
+    
+    - name: Build CLI version
+      run: |
+        cd strategies
+        pyinstaller --onefile --noconsole --name "Kimi_BTC_Strategy_CLI" BTC_Strategy_Windows_CLI.py
+    
+    - name: Build GUI version
+      run: |
+        cd strategies
+        pyinstaller --onefile --noconsole --name "Kimi_BTC_Strategy_GUI" BTC_Strategy_Windows_GUI.py
+      continue-on-error: true
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-exe
+        path: |
+          strategies/dist/*.exe
+        retention-days: 30
+    
+    - name: Create Release
+      if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: strategies/dist/*.exe
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
